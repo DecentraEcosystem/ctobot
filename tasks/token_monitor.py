@@ -430,11 +430,13 @@ class TokenMonitor:
                 mint = t.get('mint')
                 if not mint or mint in self.posted_mints or mint in self.tracked:
                     continue
+                mc    = t.get('marketCap') or 0
                 buys  = t.get('buys1h') or 0
                 sells = t.get('sells1h') or 0
-                if buys == 0 or sells == 0:
-                    sym = t.get('baseToken', {}).get('symbol', mint[:8])
-                    logger.info(f"⏭ Skip {sym} ({mint[:8]}): no activity (buys={buys} sells={sells})")
+                sym   = t.get('baseToken', {}).get('symbol', mint[:8])
+                # Scarta token senza attività o con MC troppo basso
+                if buys == 0 or sells == 0 or mc < 1000:
+                    logger.info(f"⏭ Skip {sym} ({mint[:8]}): buys={buys} sells={sells} mc=${mc:,.0f}")
                     self.posted_mints.add(mint)
                     db.add_posted_mint(mint)
                     continue
@@ -443,6 +445,17 @@ class TokenMonitor:
             if not new_tokens:
                 logger.info("ℹ️ No new CTO tokens this cycle")
                 return
+
+            # Rate limit: max 3 post per ciclo per evitare flood
+            if len(new_tokens) > 3:
+                logger.info(f"⚠️ Rate limit: {len(new_tokens)} new CTOs, posting only first 3")
+                # Marca gli altri come seen senza postarli
+                for t in new_tokens[3:]:
+                    _m = t.get('mint')
+                    if _m:
+                        self.posted_mints.add(_m)
+                        db.add_posted_mint(_m)
+                new_tokens = new_tokens[:3]
 
             logger.info(f"🤝 {len(new_tokens)} new CTO(s) to post")
 
