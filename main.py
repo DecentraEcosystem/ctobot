@@ -82,9 +82,7 @@ def main():
 
         await application.bot.set_my_commands([
             BotCommand("start",        "🏠 Main menu"),
-            BotCommand("trending",     "📈 Live trending tokens sorted by gain"),
-            BotCommand("buytrending",  "🚀 Promote your token in the channel"),
-            BotCommand("toptrending",  "🏆 Top 10 tokens by performance"),
+            BotCommand("buytrending",  "🚀 Promote your CTO in the channel"),
             BotCommand("disclaimer",   "⚠️ Risk disclaimer & important info"),
         ])
         logger.info("✅ Bot commands menu set")
