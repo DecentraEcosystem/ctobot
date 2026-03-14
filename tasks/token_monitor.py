@@ -159,8 +159,6 @@ class TokenMonitor:
                 plan=d.get('plan', ''),
                 dex_boost_posted=d.get('dex_boost_posted', False),
                 dex_ads_posted=d.get('dex_ads_posted', False),
-                dex_boost_posted=d.get('dex_boost_posted', False),
-                dex_ads_posted=d.get('dex_ads_posted', False),
                 dex_cto_posted=d.get('dex_cto_posted', False),
             )
             tracked[d['mint']] = t
