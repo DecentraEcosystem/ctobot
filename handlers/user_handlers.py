@@ -133,7 +133,6 @@ SESSION_TIMEOUT_SEC = 300  # 5 minuti di inattività → sessione scaduta
 
 def _main_menu_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📈 Live Trending Tokens", callback_data="trending")],
         [InlineKeyboardButton("🚀 Promote My Token", callback_data="buytrending")],
         [InlineKeyboardButton("⚠️ Risk Disclaimer", callback_data="disclaimer")],
     ])
@@ -167,7 +166,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "👋 <b>Welcome to CTO Early Trending!</b>\n\n"
         "Your real-time radar for <b>Community Takeovers</b> on Solana.\n\n"
-        "📈 <b>Trending Tokens</b> — See live CTO tokens being tracked, sorted by performance\n"
         "💰 <b>Promote Token</b> — Pay SOL to feature your CTO in the channel\n"
         "⚠️ <b>Disclaimer</b> — Important risk info before trading\n\n"
         "Choose an option below:"
@@ -387,16 +385,12 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    if query.data == "trending":
-        await trending_command(update, context)
-    elif query.data == "buytrending":
+    if query.data == "buytrending":
         await buytrending_command(update, context)
     elif query.data == "disclaimer":
         await disclaimer_command(update, context)
     elif query.data == "back_to_menu":
         await start_command(update, context)
-    elif query.data == "trending_refresh":
-        await trending_command(update, context)
     elif query.data.startswith("promote:"):
         await promote_button_callback(update, context)
     elif query.data.startswith("plan:"):
@@ -621,16 +615,13 @@ async def receive_social_links(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # ── Messaggio 2: piani + bottoni 2 per riga ──
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🟢 Basic — 0.5 SOL", callback_data=f"plan:{PLAN_STANDARD}")],
-        [InlineKeyboardButton("🔥 Premium — 2 SOL", callback_data=f"plan:{PLAN_PREMIUM}")],
+        [InlineKeyboardButton("🟢 Promote — 0.5 SOL", callback_data=f"plan:{PLAN_STANDARD}")],
     ])
 
     plan_text = (
-        f"🔽 <b>Choose your Plan</b>\n\n"
-        f"🟢 <b>Basic — 0.5 SOL</b>\n"
-        f"CTO Entry Signal + Pinned + Gain Alerts\n\n"
-        f"🔥 <b>Premium — 2 SOL</b>\n"
-        f"CTO Entry Signal + Pinned + Gain Alerts + Repost every hour for 12h (12 total posts)"
+        f"🚀 <b>Promote your CTO — 0.5 SOL</b>\n\n"
+        f"✅ CTO Entry Signal post\n"
+        f"✅ Automatic gain alerts as it pumps"
     )
 
     await update.message.reply_text(
@@ -725,8 +716,8 @@ async def receive_payment_hash(update: Update, context: ContextTypes.DEFAULT_TYP
 
     plan = context.user_data.get('promo_plan', PLAN_STANDARD)
     expected_amount = PLAN_PRICES.get(plan, PLAN_PRICES[PLAN_STANDARD])
-    pin_requested = True  # always pin
-    repost_requested = plan == PLAN_PREMIUM
+    pin_requested = False  # no pin
+    repost_requested = False
     repost_count = 12 if plan == PLAN_PREMIUM else 0
 
     # ── Session: verifica che siamo ancora in tempo ──────
