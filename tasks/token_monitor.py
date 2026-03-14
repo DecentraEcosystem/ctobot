@@ -425,12 +425,20 @@ class TokenMonitor:
         L'unico filtro è: non già postato.
         """
         try:
-            new_tokens = [
-                t for t in tokens
-                if t.get('mint')
-                and t['mint'] not in self.posted_mints
-                and t['mint'] not in self.tracked
-            ]
+            new_tokens = []
+            for t in tokens:
+                mint = t.get('mint')
+                if not mint or mint in self.posted_mints or mint in self.tracked:
+                    continue
+                buys  = t.get('buys1h') or 0
+                sells = t.get('sells1h') or 0
+                if buys == 0 or sells == 0:
+                    sym = t.get('baseToken', {}).get('symbol', mint[:8])
+                    logger.info(f"⏭ Skip {sym} ({mint[:8]}): no activity (buys={buys} sells={sells})")
+                    self.posted_mints.add(mint)
+                    db.add_posted_mint(mint)
+                    continue
+                new_tokens.append(t)
 
             if not new_tokens:
                 logger.info("ℹ️ No new CTO tokens this cycle")
