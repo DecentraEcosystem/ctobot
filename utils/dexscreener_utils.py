@@ -1123,64 +1123,23 @@ class DexscreenerAPI:
         Ritorna lista de-duplicata di dict nel formato standard.
         Non applica nessun filtro MC/età — li posta tutti.
         """
-        CTO_URL      = "https://api.dexscreener.com/community-takeovers/latest/v1"
-        PROFILES_URL = "https://api.dexscreener.com/token-profiles/latest/v1"
+        CTO_URL = "https://api.dexscreener.com/community-takeovers/latest/v1"
         try:
-            # Fetch entrambi gli endpoint in parallelo
             async with aiohttp.ClientSession() as session:
-                cto_resp, profiles_resp = await asyncio.gather(
-                    session.get(CTO_URL,      timeout=aiohttp.ClientTimeout(total=15)),
-                    session.get(PROFILES_URL, timeout=aiohttp.ClientTimeout(total=15)),
-                    return_exceptions=True
-                )
+                async with session.get(CTO_URL, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"CTO endpoint status {resp.status}")
+                        return []
+                    raw_cto = await resp.json()
 
-                raw_cto = []
-                if not isinstance(cto_resp, Exception) and cto_resp.status == 200:
-                    raw_cto = await cto_resp.json()
-                else:
-                    logger.warning(f"CTO endpoint failed: {cto_resp}")
+            if not isinstance(raw_cto, list):
+                return []
 
-                raw_profiles = []
-                if not isinstance(profiles_resp, Exception) and profiles_resp.status == 200:
-                    raw_profiles = await profiles_resp.json()
-                else:
-                    logger.warning(f"Profiles endpoint failed: {profiles_resp}")
-
-            # Normalizza CTO ufficiali
-            sol_ctos_map: dict = {}
-            if isinstance(raw_cto, list):
-                for item in raw_cto:
-                    if item.get('chainId') == 'solana' and item.get('tokenAddress'):
-                        mint = item['tokenAddress']
-                        sol_ctos_map[mint] = item  # claimDate + description
-
-            # Aggiungi profili Solana che hanno il flag CTO (tokenAddress presente = profilo verificato)
-            # token-profiles non ha claimDate ma anticipa spesso il feed CTO ufficiale
-            profiles_added = 0
-            if isinstance(raw_profiles, list):
-                for item in raw_profiles:
-                    if item.get('chainId') != 'solana':
-                        continue
-                    mint = item.get('tokenAddress')
-                    if not mint or mint in sol_ctos_map:
-                        continue
-                    # Includi solo se ha almeno url (profilo compilato) — filtra spam
-                    if not item.get('url'):
-                        continue
-                    sol_ctos_map[mint] = {
-                        'tokenAddress': mint,
-                        'chainId': 'solana',
-                        'claimDate': '',
-                        'description': item.get('description') or '',
-                        '_from_profiles': True,
-                    }
-                    profiles_added += 1
-
-            sol_ctos = list(sol_ctos_map.values())
-            logger.info(
-                f"🤝 DexScreener: {len(sol_ctos_map) - profiles_added} CTO(s) + "
-                f"{profiles_added} profile(s) = {len(sol_ctos)} total Solana token(s)"
-            )
+            sol_ctos = [
+                item for item in raw_cto
+                if item.get('chainId') == 'solana' and item.get('tokenAddress')
+            ]
+            logger.info(f"🤝 DexScreener CTO: {len(sol_ctos)} Solana CTO(s) found")
 
             if not sol_ctos:
                 return []
