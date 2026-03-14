@@ -395,6 +395,23 @@ class TokenMonitor:
         try:
             tokens = await self.dexscreener_api.fetch_cto_tokens()
             logger.info(f"🤝 CTO poll: {len(tokens)} token(s)")
+
+            # ── Seed al primo avvio: marca tutti i CTO esistenti come già visti ──
+            # Se il DB è vuoto (primo deploy) non postare nulla — segna tutto come seen
+            # e aspetta il prossimo tick per postare solo i CTO realmente nuovi.
+            if not hasattr(self, '_seeded'):
+                self._seeded = len(self.posted_mints) > 0  # già seeded se DB non è vuoto
+
+            if not self._seeded:
+                logger.info(f"🌱 First run seed: marking {len(tokens)} existing CTO(s) as seen — no posts")
+                for t in tokens:
+                    mint = t.get('mint')
+                    if mint and mint not in self.posted_mints:
+                        self.posted_mints.add(mint)
+                        db.add_posted_mint(mint)
+                self._seeded = True
+                return
+
             await self._process_token_candidates(tokens)
         except Exception as e:
             logger.error(f"❌ check_trending_tokens error: {str(e)}")
