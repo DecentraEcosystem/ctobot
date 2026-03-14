@@ -203,6 +203,8 @@ def load_tracked_tokens(max_age_sec: float = 172800) -> list:
             pass
 
     with _conn() as con:
+        # Use row_factory for named column access — immune to schema changes
+        con.row_factory = sqlite3.Row
         rows = con.execute("""
             SELECT mint, symbol, initial_mc, message_id, posted_at,
                    last_notified_multiplier, last_volume1h, volume_alert_sent,
@@ -212,16 +214,14 @@ def load_tracked_tokens(max_age_sec: float = 172800) -> list:
             FROM tracked_tokens
             WHERE posted_at >= ?
         """, (max_cutoff,)).fetchall()
+        con.row_factory = None
 
         result = []
         for r in rows:
-            mint = r[0]
-            plan = r[10] or ''
-            # La logica di durata/rimozione è ora interamente in _check_gains
-            # basata su peak_multiplier e MC drop. Il DB carica tutto ciò che
-            # è entro 7 giorni, poi _check_gains decide cosa rimuovere.
+            mint = r['mint']
+            plan = r['plan'] or ''
 
-            last_notified_from_tracked = r[5]
+            last_notified_from_tracked = r['last_notified_multiplier']
 
             max_sent = con.execute("""
                 SELECT COALESCE(MAX(milestone), 1.0)
@@ -232,21 +232,24 @@ def load_tracked_tokens(max_age_sec: float = 172800) -> list:
             last_notified = max(last_notified_from_tracked, max_sent)
 
             result.append({
-                'mint': mint, 'symbol': r[1], 'initial_mc': r[2],
-                'message_id': r[3], 'posted_at': r[4],
+                'mint': mint,
+                'symbol': r['symbol'],
+                'initial_mc': r['initial_mc'],
+                'message_id': r['message_id'],
+                'posted_at': r['posted_at'],
                 'last_notified_multiplier': last_notified,
-                'last_volume1h': r[6],
-                'volume_alert_sent': bool(r[7]),
-                'original_caption': r[8] or '',
-                'name': r[9] or '',
+                'last_volume1h': r['last_volume1h'] or 0.0,
+                'volume_alert_sent': bool(r['volume_alert_sent']),
+                'original_caption': r['original_caption'] or '',
+                'name': r['name'] or '',
                 'plan': plan,
-                'logo_url': r[12] or '',
-                'dex_updated': bool(r[13]),
-                'dex_boost_posted': bool(r[14]),
-                'peak_multiplier': float(r[15] or 1.0),
-                'livestream_posted': bool(r[16]),
-                'dex_ads_posted': bool(r[17]),
-                'dex_cto_posted': bool(r[18]),
+                'logo_url': r['logo_url'] or '',
+                'dex_updated': bool(r['dex_updated']),
+                'dex_boost_posted': bool(r['dex_boost_posted']),
+                'peak_multiplier': float(r['peak_multiplier'] or 1.0),
+                'livestream_posted': bool(r['livestream_posted']),
+                'dex_ads_posted': bool(r['dex_ads_posted']),
+                'dex_cto_posted': bool(r['dex_cto_posted']),
             })
 
     return result
@@ -263,10 +266,10 @@ def save_tracked_token(t) -> None:
             INSERT OR REPLACE INTO tracked_tokens
               (mint, symbol, initial_mc, message_id, posted_at,
                last_notified_multiplier, last_volume1h, volume_alert_sent,
-               original_caption, name, plan, graduation_posted, logo_url, dex_updated,
+               original_caption, name, plan, logo_url, dex_updated,
                dex_boost_posted, peak_multiplier, livestream_posted,
                dex_ads_posted, dex_cto_posted)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             d['mint'], d['symbol'], d['initial_mc'], d['message_id'], d['posted_at'],
             d.get('last_notified_multiplier', 1.0),
@@ -275,7 +278,6 @@ def save_tracked_token(t) -> None:
             d.get('original_caption', ''),
             d.get('name', ''),
             d.get('plan', ''),
-            int(d.get('graduation_posted', False)),
             d.get('logo_url', ''),
             int(d.get('dex_updated', False)),
             int(d.get('dex_boost_posted', False)),
