@@ -108,12 +108,17 @@ def main():
 
     async def stop_background_tasks(application):
         """Cancella tutti i task di background in modo pulito allo shutdown."""
-        logger.info(f"🛑 Stopping {len(_bg_tasks)} background task(s)...")
-        for task in _bg_tasks:
+        # Include internal tasks from monitor (gain/boost/ads loops)
+        all_tasks = list(_bg_tasks)
+        monitor = application.bot_data.get("monitor")
+        if monitor and hasattr(monitor, '_internal_tasks'):
+            all_tasks.extend(monitor._internal_tasks)
+        logger.info(f"🛑 Stopping {len(all_tasks)} background task(s)...")
+        for task in all_tasks:
             if not task.done():
                 task.cancel()
-        if _bg_tasks:
-            await asyncio.gather(*_bg_tasks, return_exceptions=True)
+        if all_tasks:
+            await asyncio.gather(*all_tasks, return_exceptions=True)
         logger.info("✅ Background tasks stopped cleanly")
 
     app.post_init = start_background_tasks
