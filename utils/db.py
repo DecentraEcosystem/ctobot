@@ -457,3 +457,8 @@ def set_setting(key: str, value: str):
         )
 
 
+
+
+def init_referral_table():
+    """Stub — referral system not used in CTObot."""
+    pass
