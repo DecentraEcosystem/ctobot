@@ -1257,3 +1257,165 @@ class DexscreenerAPI:
         except Exception as e:
             logger.error(f"fetch_cto_tokens error: {e}")
             return []
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Profile Update Discovery — token che fanno dex update mentre pompano
+    # ──────────────────────────────────────────────────────────────────────────
+
+    async def fetch_profile_tokens(self) -> List[Dict]:
+        """
+        Fetcha i token Solana che hanno appena aggiornato il profilo DexScreener
+        (ultimi 30 Solana nel feed = più recenti) e stanno pompando negli ultimi 5 minuti.
+
+        Filtri:
+          - Primi 30 Solana nel feed (= aggiornati più di recente)
+          - MC >= $20k
+          - volume5m >= $2k  (soldi veri negli ultimi 5 minuti)
+          - buys5m > sells5m (pressione buy)
+          - Ha logo + almeno un social
+        """
+        PROFILES_URL = "https://api.dexscreener.com/token-profiles/latest/v1"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(PROFILES_URL, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"Profiles endpoint status {resp.status}")
+                        return []
+                    raw = await resp.json()
+
+            if not isinstance(raw, list):
+                return []
+
+            # Prendi i primi 30 Solana (più recenti nel feed)
+            sol_items = []
+            for item in raw:
+                if item.get('chainId') != 'solana':
+                    continue
+                mint = item.get('tokenAddress')
+                if not mint:
+                    continue
+                # Deve avere logo
+                if not item.get('icon') and not item.get('header'):
+                    continue
+                # Deve avere almeno un social
+                links = item.get('links') or []
+                has_social = any(
+                    l.get('type') in ('twitter', 'telegram', 'discord') or
+                    'x.com' in (l.get('url') or '') or
+                    't.me' in (l.get('url') or '')
+                    for l in links
+                )
+                if not has_social:
+                    continue
+                sol_items.append(mint)
+                if len(sol_items) >= 30:  # solo i 30 più recenti
+                    break
+
+            if not sol_items:
+                return []
+
+            logger.info(f"📊 Profile feed: top {len(sol_items)} recent Solana tokens")
+
+            # Arricchisci in batch da DexScreener — usa m5 per volume/txns
+            dex_map: dict = {}
+            async with aiohttp.ClientSession() as session:
+                for i in range(0, len(sol_items), 30):
+                    batch = sol_items[i:i+30]
+                    try:
+                        async with session.get(
+                            f"{self.dex_base}/tokens/{','.join(batch)}",
+                            timeout=aiohttp.ClientTimeout(total=10),
+                        ) as r:
+                            if r.status == 200:
+                                data = await r.json()
+                                for pair in (data.get('pairs') or []):
+                                    m = pair.get('baseToken', {}).get('address', '')
+                                    if not m or m in dex_map:
+                                        continue
+                                    mc       = float(pair.get('marketCap', 0) or 0)
+                                    txns     = pair.get('txns') or {}
+                                    vol      = pair.get('volume') or {}
+                                    buys5m   = int(txns.get('m5', {}).get('buys', 0) or 0)
+                                    sells5m  = int(txns.get('m5', {}).get('sells', 0) or 0)
+                                    vol5m    = float(vol.get('m5', 0) or 0)
+                                    buys1h   = int(txns.get('h1', {}).get('buys', 0) or 0)
+                                    sells1h  = int(txns.get('h1', {}).get('sells', 0) or 0)
+                                    vol1h    = float(vol.get('h1', 0) or 0)
+                                    pc1h     = float((pair.get('priceChange') or {}).get('h1', 0) or 0)
+                                    info     = pair.get('info') or {}
+                                    socials  = info.get('socials') or []
+                                    logo     = (info.get('imageUrl') or '').strip() or (info.get('icon') or '').strip()
+
+                                    # ── Filtri ──
+                                    if mc < 20_000:         continue  # token troppo piccolo
+                                    if vol5m < 2_000:       continue  # nessun volume negli ultimi 5 min
+                                    if buys5m <= sells5m:   continue  # pressione sell
+
+                                    dex_map[m] = {
+                                        'symbol':        pair.get('baseToken', {}).get('symbol', ''),
+                                        'name':          pair.get('baseToken', {}).get('name', ''),
+                                        'mc':            mc,
+                                        'priceUsd':      float(pair.get('priceUsd', 0) or 0),
+                                        'liquidity':     float((pair.get('liquidity') or {}).get('usd', 0) or 0),
+                                        'volume1h':      vol1h,
+                                        'volume24h':     float(vol.get('h24', 0) or 0),
+                                        'buys1h':        buys1h,
+                                        'sells1h':       sells1h,
+                                        'buys5m':        buys5m,
+                                        'sells5m':       sells5m,
+                                        'vol5m':         vol5m,
+                                        'priceChange1h': pc1h,
+                                        'priceChange24h': float((pair.get('priceChange') or {}).get('h24', 0) or 0),
+                                        'logo':          logo,
+                                        'twitter':       next((s.get('url') for s in socials if s.get('type') == 'twitter'), None),
+                                        'telegram':      next((s.get('url') for s in socials if s.get('type') == 'telegram'), None),
+                                        'website':       (info.get('websites') or [None])[0],
+                                        'pairCreatedAt': pair.get('pairCreatedAt', 0) or int(time.time() * 1000),
+                                    }
+                    except Exception as e:
+                        logger.debug(f"Profile batch error: {e}")
+                    await asyncio.sleep(0.1)
+
+            if not dex_map:
+                logger.info("📊 No profile tokens pass filters this cycle")
+                return []
+
+            tokens = []
+            for mint, dex in dex_map.items():
+                token = {
+                    'mint': mint,
+                    'baseToken': {'address': mint, 'symbol': dex['symbol'], 'name': dex['name']},
+                    'marketCap': dex['mc'],
+                    'logo': dex['logo'] or None,
+                    'priceUsd': dex['priceUsd'],
+                    'liquidity': dex['liquidity'],
+                    'volume1h': dex['volume1h'],
+                    'volume24h': dex['volume24h'],
+                    'txns1h': dex['buys1h'] + dex['sells1h'],
+                    'sells_from_dex': True,
+                    'buys1h': dex['buys1h'],
+                    'sells1h': dex['sells1h'],
+                    'priceChange1h': dex['priceChange1h'],
+                    'priceChange24h': dex['priceChange24h'],
+                    'holders': None,
+                    'pairCreatedAt': dex['pairCreatedAt'],
+                    'website': dex['website'],
+                    'twitter': dex['twitter'],
+                    'telegram': dex['telegram'],
+                    'discord': None,
+                    'info': {},
+                    'cto_claim_date': '',
+                    'cto_description': '',
+                }
+                tokens.append(token)
+                logger.info(
+                    f"📊 Profile PASS: {dex['symbol']} MC=${dex['mc']:,.0f} "
+                    f"vol5m=${dex['vol5m']:,.0f} buys5m={dex['buys5m']} sells5m={dex['sells5m']}"
+                )
+
+            logger.info(f"📊 {len(tokens)} profile token(s) pass filters")
+            return tokens
+
+        except Exception as e:
+            logger.error(f"fetch_profile_tokens error: {e}")
+            return []
