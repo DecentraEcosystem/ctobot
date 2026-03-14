@@ -434,6 +434,20 @@ class TokenMonitor:
                 buys  = t.get('buys1h') or 0
                 sells = t.get('sells1h') or 0
                 sym   = t.get('baseToken', {}).get('symbol', mint[:8])
+                # Scarta CTO con claimDate più vecchia di 24h
+                claim_date = t.get('cto_claim_date', '')
+                if claim_date:
+                    try:
+                        import datetime as _dt
+                        claim_dt = _dt.datetime.strptime(claim_date, '%Y-%m-%d')
+                        age_days = ((_dt.datetime.utcnow() - claim_dt).total_seconds() / 86400)
+                        if age_days > 1:
+                            logger.info(f"⏭ Skip {sym} ({mint[:8]}): CTO claimed {age_days:.0f} days ago")
+                            self.posted_mints.add(mint)
+                            db.add_posted_mint(mint)
+                            continue
+                    except Exception:
+                        pass
                 # Scarta token senza attività o con MC troppo basso
                 if buys == 0 or sells == 0 or mc < 1000:
                     logger.info(f"⏭ Skip {sym} ({mint[:8]}): buys={buys} sells={sells} mc=${mc:,.0f}")
