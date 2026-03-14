@@ -293,7 +293,7 @@ async def buytrending_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await _notify_admin(
         context.bot,
-        f"👀 <b>New Buytrending Session</b>\n\n"
+        f"🤝 <b>New CTO Buytrending Session</b>\n\n"
         f"👤 {username_str} (<code>{user.id}</code>)\n"
         f"📛 Name: {user.full_name or 'N/A'}\n"
         f"🕐 {now_str}"
