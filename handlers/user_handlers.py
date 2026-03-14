@@ -609,9 +609,7 @@ async def receive_social_links(update: Update, context: ContextTypes.DEFAULT_TYP
     # ── Messaggio 1: logo + is ready to trend ──
     ready_text = (
         f"🤝 <b>${symbol} is Ready to Enter CTO Trending!</b>\n\n"
-        f"Your token will be seen by traders hunting the next CTO pump.\n\n"
-        f"✅ CTO Entry Signal post\n"
-        f"✅ Automatic gain alerts as it pumps\n"
+        f"Your token will be seen by traders hunting the next CTO pump.\n"
     )
 
     logo_sent = False
@@ -700,8 +698,6 @@ async def _send_payment_instructions(message, context, plan, plan_labels, plan_n
 
     text = (
         f"💸 <b>Almost there!</b>\n\n"
-        f"<b>{plan_labels[plan]}</b> — {total} SOL\n"
-        f"<i>{plan_notes[plan]}</i>\n\n"
         f"Send exactly <b>{total:.2f} SOL</b> to:\n"
         f"<code>{config.PAYMENT_WALLET}</code>\n\n"
         f"Then paste your <b>Transaction Hash</b> here."
@@ -1025,17 +1021,9 @@ async def receive_payment_hash(update: Update, context: ContextTypes.DEFAULT_TYP
                 context.bot, config.CHANNEL_ID, sent_msg.message_id, pin_hours
             ))
 
-        plan_boost_notes = {
-            PLAN_STANDARD: "",
-            PLAN_BOOST:    "\n📌 Post pinned for 24 hours!",
-            PLAN_PREMIUM:  "\n🔥 Post pinned + reposted every hour for 24h with live data!",
-            PLAN_VIP:      "\n👑 Post pinned + reposted every hour for 3 days with live data!",
-        }
-        boost_note = plan_boost_notes.get(plan, "")
-
         _token_name = token_info.get("baseToken", {}).get("name", "Your token") if token_info else "Your token"
         await update.message.reply_text(
-            f"🎉 <b>{_token_name}</b> is now in <b>CTO Trending</b>! 🤝\n\nTraders can see your token right now. 👀{boost_note}",
+            f"🎉 <b>{_token_name}</b> is now in <b>CTO Trending</b>! 🤝\n\nTraders can see your token right now. 👀",
             parse_mode="HTML",
             disable_web_page_preview=True
         )
