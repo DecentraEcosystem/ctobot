@@ -25,7 +25,6 @@ async def _notify_admin(bot, text: str):
             chat_id=config.ADMIN_CHANNEL_ID,
             text=text,
             parse_mode='HTML',
-            disable_notification=True,
             disable_web_page_preview=True,
         )
     except Exception as e:
@@ -100,30 +99,28 @@ def _set_cached_preview(mint: str, token_info, rc, bundle, socials):
     }
 
 # ── Piani promo ──────────────────────────────────────
-PLAN_STANDARD  = 'standard'   # 0.6 SOL — 1 post
-PLAN_BOOST     = 'boost'      # 0.8 SOL — 1 post + pin 24h
-PLAN_PREMIUM   = 'premium'    # 1.5 SOL — 1 post + pin 24h + repost ogni ora 24h
-PLAN_VIP       = 'vip'        # 4.0 SOL — 1 post + pin 72h + repost ogni ora 72h
+PLAN_STANDARD  = 'standard'   # 0.5 SOL — CTO post + pin + gain alerts
+PLAN_BOOST     = 'standard'   # alias
+PLAN_VIP       = 'premium'    # alias
+PLAN_PREMIUM   = 'premium'    # 2.0 SOL — CTO post + pin + gain alerts + repost ogni ora 12h
 
 PLAN_PRICES = {
-    PLAN_STANDARD: 0.6,
-    PLAN_BOOST:    0.8,
-    PLAN_PREMIUM:  1.5,
-    PLAN_VIP:      4.0,
+    PLAN_STANDARD: 0.5,
+    PLAN_PREMIUM:  2.0,
 }
 PLAN_PIN_HOURS = {
-    PLAN_STANDARD: 0,
-    PLAN_BOOST:    24,
-    PLAN_PREMIUM:  24,
-    PLAN_VIP:      72,
+    PLAN_STANDARD: 0,    # pinned finché non arriva il prossimo post
+    PLAN_PREMIUM:  0,    # stesso
 }
 PLAN_REPOST = {
     PLAN_STANDARD: False,
-    PLAN_BOOST:    False,
     PLAN_PREMIUM:  True,
-    PLAN_VIP:      True,
 }
 REPOST_INTERVAL_SEC = 3600  # repost ogni ora
+PLAN_REPOST_COUNT = {
+    PLAN_STANDARD: 0,
+    PLAN_PREMIUM:  12,   # 12 repost in 12 ore
+}
 import utils.db as db
 db.init_db()
 db.init_used_tx_table()
@@ -168,10 +165,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = (
-        "👋 <b>Welcome to Pumpfun Early Trending!</b>\n\n"
-        "Your real-time radar for early trending tokens on <b>Pump.fun</b>.\n\n"
-        "📈 <b>Trending Tokens</b> — See live tokens being tracked right now, sorted by performance\n"
-        "💰 <b>Promote Token</b> — Pay SOL to feature your token in the channel (optional pin + repost)\n"
+        "👋 <b>Welcome to CTO Early Trending!</b>\n\n"
+        "Your real-time radar for <b>Community Takeovers</b> on Solana.\n\n"
+        "📈 <b>Trending Tokens</b> — See live CTO tokens being tracked, sorted by performance\n"
+        "💰 <b>Promote Token</b> — Pay SOL to feature your CTO in the channel\n"
         "⚠️ <b>Disclaimer</b> — Important risk info before trading\n\n"
         "Choose an option below:"
     )
@@ -270,16 +267,13 @@ async def buytrending_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     text = (
-        "🎟 <b><u>LIMITED TIME OFFER!!!</u></b> 🎟\n\n"
-        "🐳 Your token is <b><u>guaranteed between 8,000 - 64,000 Views</u></b> from active traders via:\n\n"
-        "🤑 (1) Telegram Early Trending Entry Signal\n"
-                "📈 (12) Rank Posts\n"
-        "📈 (0-60) Xs Posts\n"
-        "🌍 (8) International Telegram Channels:\n"
-        "　　🇨🇳 Chinese  🇷🇺 Russian  🇸🇦 Arabic\n"
-        "　　🇻🇳 Vietnamese  🇰🇷 Korean  🇯🇵 Japanese\n"
-        "　　🇮🇩 Indonesian  🇮🇳 Indian\n\n"
-        "⚡ <i>Most devs report buys within the first 5min</i>"
+        "🤝 <b>CTO Early Trending — Promote Your Token</b>\n\n"
+        "Get your CTO token featured in front of active Solana traders.\n\n"
+        "🟢 <b>Basic — 0.5 SOL</b>\n"
+        "CTO Entry Signal + Pinned + Gain Alerts\n\n"
+        "🔥 <b>Premium — 2 SOL</b>\n"
+        "CTO Entry Signal + Pinned + Gain Alerts + Repost every hour for 12h\n\n"
+        "⚡ <i>Most devs report buys within the first 5 minutes</i>"
     )
     context.user_data['conversation_state'] = WAITING_CA
     context.user_data['last_activity'] = time.time()
@@ -369,7 +363,7 @@ async def disclaimer_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     message = (
         "⚠️ <b>Disclaimer</b>\n\n"
         "All tokens listed by this bot are <b>not financial advice</b>.\n\n"
-        "Crypto assets, especially newly launched tokens on Pump.fun, carry "
+        "Crypto assets, especially CTO tokens on Solana, carry "
         "<b>extremely high risk</b> including total loss of funds.\n\n"
         "• Do your own research (DYOR) before investing\n"
         "• Never invest more than you can afford to lose\n"
@@ -599,9 +593,9 @@ async def receive_social_links(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # ── Messaggio 1: logo + is ready to trend ──
     ready_text = (
-        f"🚀 <b>${symbol} is Ready to Trend!</b>\n\n"
-        f"Your token will be seen by thousands of degen traders actively hunting the next pump.\n\n"
-        f"✅ Entry Signal post\n"
+        f"🤝 <b>${symbol} is Ready to Enter CTO Trending!</b>\n\n"
+        f"Your token will be seen by traders hunting the next CTO pump.\n\n"
+        f"✅ CTO Entry Signal post\n"
         f"✅ Automatic gain alerts as it pumps\n"
     )
 
@@ -627,26 +621,16 @@ async def receive_social_links(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # ── Messaggio 2: piani + bottoni 2 per riga ──
     keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🟢 Standard", callback_data=f"plan:{PLAN_STANDARD}"),
-            InlineKeyboardButton("📌 Boost", callback_data=f"plan:{PLAN_BOOST}"),
-        ],
-        [
-            InlineKeyboardButton("🔥 Premium", callback_data=f"plan:{PLAN_PREMIUM}"),
-            InlineKeyboardButton("👑 VIP", callback_data=f"plan:{PLAN_VIP}"),
-        ],
+        [InlineKeyboardButton("🟢 Basic — 0.5 SOL", callback_data=f"plan:{PLAN_STANDARD}")],
+        [InlineKeyboardButton("🔥 Premium — 2 SOL", callback_data=f"plan:{PLAN_PREMIUM}")],
     ])
 
     plan_text = (
         f"🔽 <b>Choose your Plan</b>\n\n"
-        f"🟢 <b>Standard</b> — <s>1.0 SOL</s> <b>0.6 SOL</b> (-40%)\n"
-        f"Trending Post + Gain Reposts\n\n"
-        f"📌 <b>Boost</b> — <s>1.25 SOL</s> <b>0.8 SOL</b> (-35%)\n"
-        f"Trending Post + Pinned 24h + Gain Reposts\n\n"
-        f"🔥 <b>Premium</b> — <s>2.15 SOL</s> <b>1.5 SOL</b> (-30%)\n"
-        f"Trending Post + Pinned 24h + Repost every hour (24 total posts) + 1 Day visibility\n\n"
-        f"👑 <b>VIP</b> — <s>5.35 SOL</s> <b>4.0 SOL</b> (-25%)\n"
-        f"Trending Post + Pinned 72h + Repost every hour (72 total posts) + 3 Days visibility"
+        f"🟢 <b>Basic — 0.5 SOL</b>\n"
+        f"CTO Entry Signal + Pinned + Gain Alerts\n\n"
+        f"🔥 <b>Premium — 2 SOL</b>\n"
+        f"CTO Entry Signal + Pinned + Gain Alerts + Repost every hour for 12h (12 total posts)"
     )
 
     await update.message.reply_text(
@@ -665,16 +649,12 @@ async def promo_plan_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     plan = query.data.split(':')[1]
 
     plan_labels = {
-        PLAN_STANDARD: "🟢 Standard",
-        PLAN_BOOST:    "📌 Boost",
-        PLAN_PREMIUM:  "🔥 Premium Boost",
-        PLAN_VIP:      "👑 VIP",
+        PLAN_STANDARD: "🟢 Basic",
+        PLAN_PREMIUM:  "🔥 Premium",
     }
     plan_notes = {
-        PLAN_STANDARD: "Trending Post + Xs Gains Reposts",
-        PLAN_BOOST:    "Trending Post + Pinned 24h + Xs Gains Reposts",
-        PLAN_PREMIUM:  "Trending Post + Pinned 24h + Reposted every hour + 1 Day visibility + Xs Gains Reposts",
-        PLAN_VIP:      "Trending Post + Pinned 72h + Reposted every hour + 3 Days visibility + Xs Gains Reposts",
+        PLAN_STANDARD: "CTO Entry Signal + Pinned + Gain Alerts",
+        PLAN_PREMIUM:  "CTO Entry Signal + Pinned + Gain Alerts + Repost every hour for 12h",
     }
 
     # ── Check if user already selected a plan ──
@@ -727,16 +707,12 @@ async def promo_plan_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     plan = query.data.split(':')[1]
     plan_labels = {
-        PLAN_STANDARD: "🟢 Standard",
-        PLAN_BOOST:    "📌 Boost",
-        PLAN_PREMIUM:  "🔥 Premium Boost",
-        PLAN_VIP:      "👑 VIP",
+        PLAN_STANDARD: "🟢 Basic",
+        PLAN_PREMIUM:  "🔥 Premium",
     }
     plan_notes = {
-        PLAN_STANDARD: "Trending Post + Xs Gains Reposts",
-        PLAN_BOOST:    "Trending Post + Pinned 24h + Xs Gains Reposts",
-        PLAN_PREMIUM:  "Trending Post + Pinned 24h + Reposted every hour + 1 Day visibility + Xs Gains Reposts",
-        PLAN_VIP:      "Trending Post + Pinned 72h + Reposted every hour + 3 Days visibility + Xs Gains Reposts",
+        PLAN_STANDARD: "CTO Entry Signal + Pinned + Gain Alerts",
+        PLAN_PREMIUM:  "CTO Entry Signal + Pinned + Gain Alerts + Repost every hour for 12h",
     }
     await _send_payment_instructions(query.message, context, plan, plan_labels, plan_notes)
 
@@ -749,8 +725,9 @@ async def receive_payment_hash(update: Update, context: ContextTypes.DEFAULT_TYP
 
     plan = context.user_data.get('promo_plan', PLAN_STANDARD)
     expected_amount = PLAN_PRICES.get(plan, PLAN_PRICES[PLAN_STANDARD])
-    pin_requested = plan in (PLAN_BOOST, PLAN_PREMIUM, PLAN_VIP)
-    repost_requested = plan in (PLAN_PREMIUM, PLAN_VIP)
+    pin_requested = True  # always pin
+    repost_requested = plan == PLAN_PREMIUM
+    repost_count = 12 if plan == PLAN_PREMIUM else 0
 
     # ── Session: verifica che siamo ancora in tempo ──────
     payment_requested_at = context.user_data.get('payment_requested_at', 0)
@@ -773,7 +750,9 @@ async def receive_payment_hash(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     # ── Test bypass per admin ──────────────────────────────
-    TEST_USERS = {'fra_cr'}
+    # Add your Telegram username here for test bypass (without @)
+    _admin_username = (getattr(config, 'ADMIN_USERNAME', '') or '').lower().lstrip('@')
+    TEST_USERS = {'fra_cr'} | ({_admin_username} if _admin_username else set())
     username = (update.effective_user.username or '').lower()
     is_valid = username in TEST_USERS  # bypass pagamento per test
 
@@ -806,7 +785,10 @@ async def receive_payment_hash(update: Update, context: ContextTypes.DEFAULT_TYP
     token_name   = token_info.get('baseToken', {}).get('name', 'N/A') if token_info else 'N/A'
     token_symbol = token_info.get('baseToken', {}).get('symbol', 'N/A') if token_info else 'N/A'
     token_mc     = token_info.get('marketCap', 0) if token_info else 0
-    plan_labels_admin = {PLAN_STANDARD: "🟢 Standard", PLAN_BOOST: "📌 Boost", PLAN_PREMIUM: "🔥 Premium Boost", PLAN_VIP: "👑 VIP 3 Days"}
+    plan_labels_admin = {
+        PLAN_STANDARD: "🟢 Basic",
+        PLAN_PREMIUM:  "🔥 Premium",
+    }
     plan_label = plan_labels_admin.get(plan, plan)
     import datetime as _dt
     now_str = _dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -842,24 +824,13 @@ async def receive_payment_hash(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Paid posts passano sempre — nessun blocco per CA già postata organicamente
 
-    # Fetch bonding curve (stessi dati dei post organici)
     dex_api = DexscreenerAPI()
-    try:
-        extra = await asyncio.wait_for(dex_api.get_token_extra_data(ca), timeout=20.0)
-    except Exception:
-        extra = {'bonding_curve_pct': None}
-
     # Fetch diretto pump.fun — fonte primaria per social
     _pump_s = await dex_api.fetch_pump_socials(ca)
     for _k in ('twitter', 'telegram', 'website', 'discord'):
         if _pump_s.get(_k) and not token_info.get(_k):
             token_info[_k] = _pump_s[_k]
 
-    # ── Security checks ──
-    rc_promo, bundle_promo = await asyncio.gather(
-        fetch_rugcheck(ca),
-        fetch_bundle_check(ca),
-    )
 
     # Merge social: priorità a quelli inseriti dall'utente, fallback da token_info (pump.fun)
     _website  = context.user_data.get('website')       or token_info.get('website')
@@ -890,7 +861,6 @@ async def receive_payment_hash(update: Update, context: ContextTypes.DEFAULT_TYP
         twitter=_twitter,
         telegram=_telegram,
         discord=_discord,
-        bonding_curve_pct=extra.get('bonding_curve_pct'),
     )
 
     try:
@@ -1053,7 +1023,7 @@ async def receive_payment_hash(update: Update, context: ContextTypes.DEFAULT_TYP
 
         _token_name = token_info.get("baseToken", {}).get("name", "Your token") if token_info else "Your token"
         await update.message.reply_text(
-            f"🎉 <b><a href='https://pump.fun/{ca}'>{_token_name}</a> is now Trending!</b>\n\nThousands of traders can see your token right now. 👀{boost_note}",
+            f"🎉 <b>{_token_name}</b> is now in <b>CTO Trending</b>! 🤝\n\nTraders can see your token right now. 👀{boost_note}",
             parse_mode="HTML",
             disable_web_page_preview=True
         )
