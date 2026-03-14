@@ -131,6 +131,9 @@ class TokenMonitor:
         self._store_message_id: Optional[int] = None
         self._bot_username: Optional[str] = None
         self._posting_lock: asyncio.Lock = asyncio.Lock()
+        # Set dei profile token già postati (separato da posted_mints)
+        # così i profile vengono rivalutati ogni ciclo ma non ripostati
+        self._profile_posted: Set[str] = set()
         self._known_boosts: list = []
         self._gain_check_lock: asyncio.Lock = asyncio.Lock()
         # Set in-memory dei gain già in corso di invio: (mint, milestone)
@@ -394,20 +397,26 @@ class TokenMonitor:
             await self._do_check_trending_tokens()
 
     async def _do_check_trending_tokens(self):
-        """CTO discovery — fetcha i community takeover da DexScreener e delega a _process_token_candidates."""
+        """Discovery: CTO ufficiali + profile update che stanno pompando."""
         try:
-            tokens = await self.dexscreener_api.fetch_cto_tokens()
-            logger.info(f"🤝 CTO poll: {len(tokens)} token(s)")
+            # Fetch entrambe le fonti in parallelo
+            cto_tokens, profile_tokens = await asyncio.gather(
+                self.dexscreener_api.fetch_cto_tokens(),
+                self.dexscreener_api.fetch_profile_tokens(),
+            )
 
-            # ── Seed al primo avvio: marca tutti i CTO esistenti come già visti ──
-            # Se il DB è vuoto (primo deploy) non postare nulla — segna tutto come seen
-            # e aspetta il prossimo tick per postare solo i CTO realmente nuovi.
+            # ── Seed al primo avvio ──────────────────────────────────────────
+            # Marca tutti i token esistenti come già visti senza postarli.
+            # Usa un set in-memory (_seeded_mints) separato da posted_mints
+            # così i profile token vengono re-valutati ogni ciclo (cambiano i dati 5m)
+            # ma non vengono ripostati se già visti.
             if not hasattr(self, '_seeded'):
-                self._seeded = len(self.posted_mints) > 0  # già seeded se DB non è vuoto
+                self._seeded = len(self.posted_mints) > 0
 
             if not self._seeded:
-                logger.info(f"🌱 First run seed: marking {len(tokens)} existing CTO(s) as seen — no posts")
-                for t in tokens:
+                all_seed = cto_tokens + profile_tokens
+                logger.info(f"🌱 First run seed: marking {len(all_seed)} existing token(s) as seen")
+                for t in all_seed:
                     mint = t.get('mint')
                     if mint and mint not in self.posted_mints:
                         self.posted_mints.add(mint)
@@ -415,6 +424,14 @@ class TokenMonitor:
                 self._seeded = True
                 return
 
+            # De-duplica: CTO ufficiali hanno priorità sui profiles
+            cto_mints = {t['mint'] for t in cto_tokens}
+            new_profiles = [t for t in profile_tokens if t['mint'] not in cto_mints]
+            tokens = cto_tokens + new_profiles
+
+            logger.info(
+                f"📡 Poll: {len(cto_tokens)} CTO + {len(new_profiles)} profile = {len(tokens)} total"
+            )
             await self._process_token_candidates(tokens)
         except Exception as e:
             logger.error(f"❌ check_trending_tokens error: {str(e)}")
@@ -434,25 +451,30 @@ class TokenMonitor:
                 buys  = t.get('buys1h') or 0
                 sells = t.get('sells1h') or 0
                 sym   = t.get('baseToken', {}).get('symbol', mint[:8])
+                is_cto = bool(t.get('cto_claim_date') or t.get('cto_description'))
+
                 # Scarta CTO con claimDate più vecchia di 24h
-                claim_date = t.get('cto_claim_date', '')
-                if claim_date:
-                    try:
-                        import datetime as _dt
-                        claim_dt = _dt.datetime.strptime(claim_date, '%Y-%m-%d')
-                        age_days = ((_dt.datetime.utcnow() - claim_dt).total_seconds() / 86400)
-                        if age_days > 1:
-                            logger.info(f"⏭ Skip {sym} ({mint[:8]}): CTO claimed {age_days:.0f} days ago")
-                            self.posted_mints.add(mint)
-                            db.add_posted_mint(mint)
-                            continue
-                    except Exception:
-                        pass
-                # Scarta token senza attività o con MC troppo basso
+                if is_cto:
+                    claim_date = t.get('cto_claim_date', '')
+                    if claim_date:
+                        try:
+                            import datetime as _dt
+                            claim_dt = _dt.datetime.strptime(claim_date, '%Y-%m-%d')
+                            age_days = ((_dt.datetime.utcnow() - claim_dt).total_seconds() / 86400)
+                            if age_days > 1:
+                                logger.info(f"⏭ Skip {sym} ({mint[:8]}): CTO claimed {age_days:.0f} days ago")
+                                self.posted_mints.add(mint)
+                                db.add_posted_mint(mint)
+                                continue
+                        except Exception:
+                            pass
+
+                # Scarta token senza attività o MC troppo basso
                 if buys == 0 or sells == 0 or mc < 1000:
                     logger.info(f"⏭ Skip {sym} ({mint[:8]}): buys={buys} sells={sells} mc=${mc:,.0f}")
-                    self.posted_mints.add(mint)
-                    db.add_posted_mint(mint)
+                    if is_cto:  # solo i CTO vengono marcati permanentemente
+                        self.posted_mints.add(mint)
+                        db.add_posted_mint(mint)
                     continue
                 new_tokens.append(t)
 
