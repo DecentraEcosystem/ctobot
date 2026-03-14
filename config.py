@@ -11,7 +11,7 @@ ADMIN_CHANNEL_ID = int(os.getenv('ADMIN_CHANNEL_ID', 0))
 
 # Solana & Payments
 PAYMENT_WALLET = os.getenv('PAYMENT_WALLET')
-SOLANA_RPC_URL = os.getenv('SOLANA_RPC_URL')
+SOLANA_RPC_URL = os.getenv('SOLANA_RPC_URL', 'https://api.mainnet-beta.solana.com')
 HELIUS_API_KEY = os.getenv('HELIUS_API_KEY')
 PRICE_SOL = float(os.getenv('PRICE_SOL', 0.5))
 
@@ -29,3 +29,7 @@ TOKEN_AGE_HOURS = 9999
 
 # Owner DM alerts
 OWNER_TELEGRAM_ID = int(os.getenv('OWNER_TELEGRAM_ID', 0))
+
+
+
+ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', '')  # Telegram username for test bypass (no @)
