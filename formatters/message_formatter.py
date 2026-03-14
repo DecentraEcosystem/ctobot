@@ -62,9 +62,9 @@ async def format_token_message(
             _trending_link = None
 
         if _trending_link:
-            title_link = f"<a href='{_trending_link}'><b>${symbol} Entered Early Trending</b></a> — CTO Started"
+            title_link = f"<a href='{_trending_link}'><b>${symbol} Entered Trending — CTO Started</b></a>"
         else:
-            title_link = f"<b>${symbol} Entered Early Trending</b> — CTO Started"
+            title_link = f"<b>${symbol} Entered Trending — CTO Started</b>"
 
         msg = f"🤝 {title_link}\n"
         msg += f"<i>{name}</i>\n\n"
