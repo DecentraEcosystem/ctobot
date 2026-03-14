@@ -99,27 +99,23 @@ def _set_cached_preview(mint: str, token_info, rc, bundle, socials):
     }
 
 # ── Piani promo ──────────────────────────────────────
-PLAN_STANDARD  = 'standard'   # 0.5 SOL — CTO post + pin + gain alerts
+PLAN_STANDARD  = 'standard'   # 0.5 SOL — CTO post + gain alerts
 PLAN_BOOST     = 'standard'   # alias
-PLAN_VIP       = 'premium'    # alias
-PLAN_PREMIUM   = 'premium'    # 2.0 SOL — CTO post + pin + gain alerts + repost ogni ora 12h
+PLAN_VIP       = 'standard'   # alias
+PLAN_PREMIUM   = 'standard'   # alias
 
 PLAN_PRICES = {
     PLAN_STANDARD: 0.5,
-    PLAN_PREMIUM:  2.0,
 }
 PLAN_PIN_HOURS = {
-    PLAN_STANDARD: 0,    # pinned finché non arriva il prossimo post
-    PLAN_PREMIUM:  0,    # stesso
+    PLAN_STANDARD: 0,
 }
 PLAN_REPOST = {
     PLAN_STANDARD: False,
-    PLAN_PREMIUM:  True,
 }
-REPOST_INTERVAL_SEC = 3600  # repost ogni ora
+REPOST_INTERVAL_SEC = 3600
 PLAN_REPOST_COUNT = {
     PLAN_STANDARD: 0,
-    PLAN_PREMIUM:  12,   # 12 repost in 12 ore
 }
 import utils.db as db
 db.init_db()
@@ -267,10 +263,7 @@ async def buytrending_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     text = (
         "🤝 <b>CTO Early Trending — Promote Your Token</b>\n\n"
         "Get your CTO token featured in front of active Solana traders.\n\n"
-        "🟢 <b>Basic — 0.5 SOL</b>\n"
-        "CTO Entry Signal + Pinned + Gain Alerts\n\n"
-        "🔥 <b>Premium — 2 SOL</b>\n"
-        "CTO Entry Signal + Pinned + Gain Alerts + Repost every hour for 12h\n\n"
+        "🟢 <b>0.5 SOL</b> — CTO Entry Signal + Gain Alerts\n\n"
         "⚡ <i>Most devs report buys within the first 5 minutes</i>"
     )
     context.user_data['conversation_state'] = WAITING_CA
@@ -509,6 +502,34 @@ async def receive_ca_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ── Semaforo globale — max 3 richieste API contemporanee ──
         async with _api_semaphore:
             token_info = await dexscreener_api.get_token_data(ca)
+
+            # Fallback: pump.fun API se DexScreener non trova il token
+            if not token_info:
+                try:
+                    import aiohttp as _aiohttp
+                    async with _aiohttp.ClientSession() as _s:
+                        async with _s.get(
+                            f"https://frontend-api.pump.fun/coins/{ca}",
+                            timeout=_aiohttp.ClientTimeout(total=6),
+                            headers={"User-Agent": "Mozilla/5.0"},
+                        ) as _r:
+                            if _r.status == 200:
+                                _d = await _r.json(content_type=None)
+                                mc = float(_d.get("usd_market_cap", 0) or 0)
+                                sym = _d.get("symbol", ca[:8])
+                                token_info = {
+                                    "mint": ca,
+                                    "baseToken": {"address": ca, "symbol": sym, "name": _d.get("name", sym)},
+                                    "marketCap": mc,
+                                    "logo": _d.get("image_uri", ""),
+                                    "priceUsd": 0, "liquidity": 0,
+                                    "volume1h": 0, "buys1h": 0, "sells1h": 0,
+                                    "twitter": _d.get("twitter_url") or _d.get("twitter"),
+                                    "telegram": _d.get("telegram_url") or _d.get("telegram"),
+                                    "website": _d.get("website"),
+                                }
+                except Exception as _e:
+                    logger.debug(f"pump.fun fallback error: {_e}")
 
             if not token_info:
                 await update.message.reply_text(
