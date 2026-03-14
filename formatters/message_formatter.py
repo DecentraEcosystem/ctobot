@@ -49,7 +49,24 @@ async def format_token_message(
         cto_claim_date  = (kwargs.get('cto_claim_date') or '')[:10]
         cto_description = kwargs.get('cto_description') or ''
 
-        msg = f"🤝 <b>${symbol}</b> — Community Takeover\n"
+        import config as _cfg
+        _ch = _cfg.CHANNEL_USERNAME.lstrip('@') if _cfg.CHANNEL_USERNAME else ''
+
+        # Se abbiamo message_id (post già salvato) usiamo il link diretto al post
+        _msg_id = kwargs.get('message_id')
+        if _msg_id and _ch:
+            _trending_link = f"https://t.me/{_ch}/{_msg_id}"
+        elif _ch:
+            _trending_link = f"https://t.me/{_ch}"
+        else:
+            _trending_link = None
+
+        if _trending_link:
+            title_link = f"<a href='{_trending_link}'><b>${symbol} — Entered CTO Early Trending</b></a>"
+        else:
+            title_link = f"<b>${symbol} — Entered CTO Early Trending</b>"
+
+        msg = f"🤝 {title_link}\n"
         msg += f"<i>{name}</i>\n\n"
 
         # Description (tronca a 120 chars)
