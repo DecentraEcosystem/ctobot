@@ -62,16 +62,16 @@ async def format_token_message(
             _trending_link = None
 
         if _trending_link:
-            title_link = f"<a href='{_trending_link}'><b>${symbol} — Entered CTO Early Trending</b></a>"
+            title_link = f"<a href='{_trending_link}'><b>${symbol} Entered Early Trending</b></a> — CTO Started"
         else:
-            title_link = f"<b>${symbol} — Entered CTO Early Trending</b>"
+            title_link = f"<b>${symbol} Entered Early Trending</b> — CTO Started"
 
         msg = f"🤝 {title_link}\n"
         msg += f"<i>{name}</i>\n\n"
 
-        # Description (tronca a 120 chars)
+        # Description (sempre mostrata se presente)
         if cto_description:
-            desc = cto_description[:120] + ('...' if len(cto_description) > 120 else '')
+            desc = cto_description[:160] + ('...' if len(cto_description) > 160 else '')
             msg += f"💬 {desc}\n\n"
 
         # Claim date
