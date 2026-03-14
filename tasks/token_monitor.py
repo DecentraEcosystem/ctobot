@@ -173,10 +173,13 @@ class TokenMonitor:
     async def start_polling(self, interval: int):
         logger.info(f"✅ CTObot monitor started with {interval}s interval")
         await self._recover_posted_mints_from_channel()
-        asyncio.create_task(self._gain_check_loop())
-        asyncio.create_task(self._resume_promo_jobs())
-        asyncio.create_task(self._boost_check_loop())
-        asyncio.create_task(self._ads_check_loop())
+        # Track internal tasks so they can be cancelled cleanly on shutdown
+        self._internal_tasks = [
+            asyncio.create_task(self._gain_check_loop()),
+            asyncio.create_task(self._resume_promo_jobs()),
+            asyncio.create_task(self._boost_check_loop()),
+            asyncio.create_task(self._ads_check_loop()),
+        ]
 
         # ── Nessun Helius WebSocket — la discovery avviene tramite DexScreener CTO endpoint ──
         logger.info("🤝 CTObot: discovery via DexScreener community-takeovers endpoint")
