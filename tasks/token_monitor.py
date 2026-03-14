@@ -501,6 +501,8 @@ class TokenMonitor:
                     twitter=best.get('twitter'),
                     discord=best.get('discord'),
                     telegram=best.get('telegram'),
+                    cto_claim_date=best.get('cto_claim_date', ''),
+                    cto_description=best.get('cto_description', ''),
                 )
 
                 if await self._is_already_posted_on_channel(mint):
