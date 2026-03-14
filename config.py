@@ -20,7 +20,7 @@ PUMP_PROGRAM_ID = os.getenv('PUMP_PROGRAM_ID', '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ
 
 # CTO Bot — nessun filtro MC/età: posta TUTTI i CTO Solana
 # POLLING_INTERVAL: quanto spesso controlla l'endpoint DexScreener CTO (secondi)
-POLLING_INTERVAL = int(os.getenv('POLLING_INTERVAL', 120))
+POLLING_INTERVAL = int(os.getenv('POLLING_INTERVAL', 30))
 
 # Dummy values mantenuti per compatibilità con moduli condivisi (non usati per filtrare)
 MIN_MARKET_CAP = 0
@@ -29,6 +29,3 @@ TOKEN_AGE_HOURS = 9999
 
 # Owner DM alerts
 OWNER_TELEGRAM_ID = int(os.getenv('OWNER_TELEGRAM_ID', 0))
-
-
-
