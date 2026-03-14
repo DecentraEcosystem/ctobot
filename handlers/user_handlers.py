@@ -6,6 +6,7 @@ from telegram.ext import ContextTypes
 from utils.dexscreener_utils import DexscreenerAPI
 from formatters.message_formatter import format_token_message
 import config
+from utils.solana_utils import SolanaClient
 import utils.db as db
 
 logger = logging.getLogger(__name__)
